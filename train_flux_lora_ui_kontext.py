@@ -1042,7 +1042,7 @@ def main(args):
                     text_encoder_one.to("cpu")
                     text_encoder_two.to("cpu")
                     # del vae, tokenizer_one, tokenizer_two, text_encoder_one, text_encoder_two, pipe_prior_redux
-                    del vae, tokenizer_one, tokenizer_two, text_encoder_one, text_encoder_two
+                    # del vae, tokenizer_one, tokenizer_two, text_encoder_one, text_encoder_two
                 
             datarows = metadata_datarows
             # Handle validation split

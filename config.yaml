@@ -1,0 +1,70 @@
+# ========================================================
+# 数据集配置文件 for FLUX LoRA 训练
+# ========================================================
+
+paired_dataset:
+  # --- 训练集配置 ---
+  train:
+    # 'target' 指向数据集类的完整Python路径。
+    # 格式为: [文件名].[类名]
+    # 因为我们的类 PairedImageDataset 在 data_loader.py 文件中，所以这里是 data_loader.PairedImageDataset
+    target: data_loader.PairedImageDataset
+    
+    # 'params' 部分包含了所有需要传递给 PairedImageDataset 类 __init__ 方法的参数
+    params:
+      # 'data_sources' 是一个列表，可以包含多组成对的数据源。
+      # 程序会遍历这个列表中的每一项，从对应的 lq_path 和 hq_path 中加载数据。
+      # 注意：路径应该是相对于您运行主训练脚本的位置的相对路径，或者使用绝对路径。
+      data_sources:
+        - lq_path: ../lq/0.6ml
+          hq_path: ../hq/0.6ml
+        - lq_path: ../lq/1.2ml
+          hq_path: ../hq/0.6ml # HQ可以复用
+        - lq_path: ../lq/1.8ml
+          hq_path: ../hq/0.6ml
+        - lq_path: ../lq/2.4ml
+          hq_path: ../hq/2.4ml
+        - lq_path: ../lq/2.8ml
+          hq_path: ../hq/2.4ml
+        - lq_path: ../lq/3.2ml
+          hq_path: ../hq/2.4ml
+        - lq_path: ../lq/3.6ml
+          hq_path: ../hq/2.4ml
+
+      # 'split' 指定要使用哪个子目录的数据: 'train', 'validate', 或 'test'
+      # 对于训练集，我们使用 'train' 文件夹
+      split: train
+      
+      # 'use_dynamic_lq' 控制是否加载一个HQ对应的所有LQ图像。
+      # true: 加载所有 xxx_yyy.ext 的LQ图像
+      # false: 只加载 xxx_001.ext 的LQ图像
+      use_dynamic_lq: true
+      
+      # 'resolution' 参数会被自动从主脚本的args中获取，这里也可以硬编码
+      # resolution: 1024 
+
+  # --- 验证集配置 ---
+  validate:
+    target: data_loader.PairedImageDataset
+    params:
+      data_sources:
+        - lq_path: ../lq/0.6ml
+          hq_path: ../hq/0.6ml
+        - lq_path: ../lq/1.2ml
+          hq_path: ../hq/0.6ml # HQ可以复用
+        - lq_path: ../lq/1.8ml
+          hq_path: ../hq/0.6ml
+        - lq_path: ../lq/2.4ml
+          hq_path: ../hq/2.4ml
+        - lq_path: ../lq/2.8ml
+          hq_path: ../hq/2.4ml
+        - lq_path: ../lq/3.2ml
+          hq_path: ../hq/2.4ml
+        - lq_path: ../lq/3.6ml
+          hq_path: ../hq/2.4ml
+          
+      # 对于验证集，我们使用 'validate' 文件夹
+      split: validate
+      
+      # 验证时，通常使用固定的数据对，所以设为 false
+      use_dynamic_lq: false
