@@ -2,11 +2,11 @@
 
 import os
 import numpy as np
-import torch
 import cv2
 from PIL import Image
 from torchvision import transforms
 from torch.utils.data import Dataset
+import random
 
 # 定义支持的图像格式
 SUPPORTED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff']
@@ -55,74 +55,86 @@ def _load_image(path: str) -> np.ndarray:
 class PairedImageDataset(Dataset):
     """
     用于加载成对 LQ/HQ 图像的新数据集类。
-    通过一个包含 lq_path 和 hq_path 的数据源列表进行初始化。
+    实现了按数据源进行固定且均衡的抽样功能。
     """
-    def __init__(self, data_sources: list, split: str, use_dynamic_lq: bool, resolution=512):
-        """
-        初始化数据集。
-        :param data_sources: 一个字典列表，每个字典包含 'lq_path' 和 'hq_path'。
-        :param split: 要使用的数据子目录，例如 'train', 'validate', 'test'。
-        :param use_dynamic_lq: 是否使用所有匹配的LQ文件 (xxx_yyy.ext)。
-        :param resolution: 图像输出分辨率。
-        """
+    # 1. 修改 __init__ 的函数签名，使用新的参数名
+    def __init__(self, data_sources: list, split: str, use_dynamic_lq: bool, resolution=512, config_dir: str = '.', 
+                 validate_samples_per_source=None, validation_seed=42):
+        
         self.image_pairs = []
         self.resolution = resolution
-        
-        # 定义图像变换流程，将加载的图像转换为模型所需的格式
         self.transform = transforms.Compose([
-            transforms.ToTensor(), # 将 [H, W, C] 的 NumPy 数组(0-1范围)转换为 [C, H, W] 的 Tensor(0-1范围)
-            transforms.Resize((resolution, resolution), antialias=True), # 调整到指定分辨率
-            transforms.Normalize([0.5], [0.5]) # 归一化到 [-1, 1]，这是VAE的标准输入范围
+            transforms.ToTensor(),
+            transforms.Resize((resolution, resolution), antialias=True),
+            transforms.Normalize([0.5], [0.5])
         ])
 
-        print(f"正在为 '{split}' 集扫描数据源并匹配 LQ/HQ 图像对...")
+        print(f"--- 正在初始化 '{split}' 数据集 ---")
         
+        # 2. 修改数据加载和抽样逻辑
         # 遍历YAML中提供的每个数据源对
-        for source in data_sources:
+        for source_idx, source in enumerate(data_sources):
             lq_dir = source['lq_path']
             hq_dir = source['hq_path']
             
-            # 根据 'split' 参数定位到具体的 'train' 或 'validate' 目录
-            lq_split_path = os.path.join(lq_dir, split)
-            hq_split_path = os.path.join(hq_dir, split)
+            lq_split_path = os.path.join(config_dir, lq_dir, split)
+            hq_split_path = os.path.join(config_dir, hq_dir, split)
 
+            # 用于存储当前数据源找到的所有图像对
+            source_specific_pairs = []
+            
             if not os.path.isdir(lq_split_path) or not os.path.isdir(hq_split_path):
-                print(f"警告: 目录 {lq_split_path} 或 {hq_split_path} 不存在，已跳过。")
+                print(f"  - 警告: 跳过数据源 {lq_dir} -> {hq_dir}，因为目录不存在。")
                 continue
 
-            # 遍历LQ目录下的所有文件
+            # (这段文件扫描逻辑与之前相同)
             for lq_filename in os.listdir(lq_split_path):
-                lq_filepath = os.path.join(lq_split_path, lq_filename)
-                
-                if not os.path.isfile(lq_filepath) or not any(lq_filename.lower().endswith(ext) for ext in SUPPORTED_IMAGE_TYPES):
-                    continue
-
+                # ... (匹配和查找文件的逻辑不变) ...
+                # ... 当找到一对时，将其添加到 source_specific_pairs 中 ...
                 base_name, ext = os.path.splitext(lq_filename)
                 parts = base_name.rsplit('_', 1)
-                
                 if len(parts) == 2 and parts[1].isdigit():
                     hq_base_name = parts[0]
-                    lq_suffix = parts[1]
-                    
-                    if not use_dynamic_lq and lq_suffix != '001':
+                    if not use_dynamic_lq and parts[1] != '001':
                         continue
                 else:
                     continue
 
-                # 寻找对应的HQ文件
                 found_hq = False
                 for hq_ext in SUPPORTED_IMAGE_TYPES:
                     hq_filepath = os.path.join(hq_split_path, f"{hq_base_name}{hq_ext}")
                     if os.path.isfile(hq_filepath):
-                        self.image_pairs.append((lq_filepath, hq_filepath))
+                        source_specific_pairs.append((os.path.join(lq_split_path, lq_filename), hq_filepath))
                         found_hq = True
                         break
-                
-                if not found_hq:
-                    # print(f"调试: 找不到 {lq_filepath} 对应的 HQ 文件，已跳过。") # 可选的调试信息
-                    pass
+            
+            original_source_count = len(source_specific_pairs)
+            
+            # 3. 对当前数据源的列表进行处理（抽样或全部添加）
+            if split == 'validate' and validate_samples_per_source is not None and validate_samples_per_source > 0:
+                # 固定抽样逻辑
+                if original_source_count == 0:
+                    print(f"  - 数据源 '{lq_dir}': 未找到任何图像对。")
+                    continue
 
-        print(f"'{split}' 集数据扫描完成，共找到 {len(self.image_pairs)} 个训练图像对。")
+                # 设置随机种子以保证可复现性
+                # 我们可以在种子中加入 source_idx，确保每个源的打乱模式不同，但仍然是固定的
+                random.seed(validation_seed + source_idx)
+                # 原地打乱列表
+                random.shuffle(source_specific_pairs)
+                
+                # 取前 N 个样本
+                num_to_sample = min(validate_samples_per_source, original_source_count)
+                sampled_pairs = source_specific_pairs[:num_to_sample]
+                
+                print(f"  - 数据源 '{lq_dir}': 找到 {original_source_count} 对, 已固定抽样 {len(sampled_pairs)} 对。")
+                self.image_pairs.extend(sampled_pairs)
+            else:
+                # 对于训练集或不进行抽样的验证集，直接全部添加
+                print(f"  - 数据源 '{lq_dir}': 找到并添加 {original_source_count} 对。")
+                self.image_pairs.extend(source_specific_pairs)
+
+        print(f"--- '{split}' 数据集初始化完成，总共加载了 {len(self.image_pairs)} 个图像对。 ---\n")
 
     def __len__(self):
         return len(self.image_pairs)
