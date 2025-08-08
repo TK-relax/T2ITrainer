@@ -28,10 +28,14 @@ import diffusers
 from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs, ProjectConfiguration, set_seed
 from accelerate.logging import get_logger
+import logging  # 确保导入了 logging
+from accelerate.logging import get_logger
+import os # 确保导入了 os
 # from datasets import load_dataset
 # from packaging import version
 # from torchvision import transforms
 # from torchvision.transforms.functional import crop
+
 from tqdm.auto import tqdm
 # from transformers import AutoTokenizer, PretrainedConfig
 from diffusers import (
@@ -740,6 +744,8 @@ def main(args):
     # --- Accelerator 初始化 ---
     logging_dir = "logs"
     accelerator_project_config = ProjectConfiguration(project_dir=args.output_dir, logging_dir=logging_dir)
+
+        
     kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     run_name = f"{args.save_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     accelerator = Accelerator(
@@ -750,6 +756,29 @@ def main(args):
         kwargs_handlers=[kwargs],
     )
     
+
+
+    # 仅在主进程中设置文件日志，这是最佳实践
+    log_level = "INFO"
+    logger = get_logger(__name__, log_level=log_level)
+    if accelerator.is_main_process:
+        # 确保输出目录存在
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir, exist_ok=True)
+        
+        log_file_path = os.path.join(args.output_dir, "training_run.log")
+        file_handler = logging.FileHandler(log_file_path)
+        file_handler.setLevel(log_level.upper())
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        file_handler.setFormatter(formatter)
+        
+        # 将文件处理器添加到根 logger
+        logging.getLogger().addHandler(file_handler)
+        
+        # 现在可以安全地使用 logger 了
+        logger.info(f"文件日志已配置。所有详细日志将被保存到: {log_file_path}")
+
+
     weight_dtype = torch.float32
     if accelerator.mixed_precision == "fp16":
         weight_dtype = torch.float16
@@ -1456,7 +1485,8 @@ def main(args):
                 # --- 保存和验证逻辑 (结构与原脚本相同，但调用方式已更新) ---
                 if global_step >= max_train_steps:
                     break
-
+                
+                args.save_model_steps = 2000
                 # 按步数保存
                 if args.save_model_steps > 0 and global_step % args.save_model_steps == 0:
                     if accelerator.is_main_process:

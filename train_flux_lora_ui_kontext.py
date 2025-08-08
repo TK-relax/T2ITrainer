@@ -387,12 +387,12 @@ def parse_args(input_args=None):
         default=1,
         help=("Save model when x epochs"),
     )
-    parser.add_argument(
-        "--save_model_steps",
-        type=int,
-        default=-1,
-        help=("Save model when x steps"),
-    )
+    # parser.add_argument(
+    #     "--save_model_steps",
+    #     type=int,
+    #     default=-1,
+    #     help=("Save model when x steps"),
+    # )
     parser.add_argument(
         "--skip_epoch",
         type=int,
@@ -1363,7 +1363,7 @@ def main(args):
         512
     ]
     
-
+    
     print("  Num examples = ", len(train_dataset))
     print("  Num Epochs = ", args.num_train_epochs)
     print("  num_update_steps_per_epoch = ", num_update_steps_per_epoch)
