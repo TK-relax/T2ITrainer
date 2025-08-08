@@ -13,7 +13,7 @@
     "train_batch_size": 5,
     "repeats": 1,
     "gradient_accumulation_steps": 1,
-    "num_train_epochs": 20,
+    "num_train_epochs": 3,
     "save_model_epochs": 1,
     "validation_epochs": 1,
     "rank": 32,

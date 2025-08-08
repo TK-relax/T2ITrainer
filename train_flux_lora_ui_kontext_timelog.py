@@ -774,8 +774,8 @@ def main(args):
     lr_num_cycles = args.cosine_restarts
     resolution = int(args.resolution)
     
-    if not os.path.exists(args.output_dir): os.makedirs(args.output_dir)
-    if not os.path.exists(args.logging_dir): os.makedirs(args.logging_dir)
+    if not os.path.exists(args.output_dir): os.makedirs(args.output_dir, exist_ok=True)
+    if not os.path.exists(args.logging_dir): os.makedirs(args.output_dir, exist_ok=True)
     
     # --- Accelerator 初始化 ---
     logging_dir = os.path.join(args.output_dir, "logs")
@@ -1568,7 +1568,7 @@ def main(args):
                 if global_step >= max_train_steps:
                     break
                 
-                args.save_model_steps = 20
+                args.save_model_steps = 600
                 # 按步数保存
                 if args.save_model_steps > 0 and global_step % args.save_model_steps == 0:
                     if accelerator.is_main_process:
