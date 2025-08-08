@@ -179,6 +179,7 @@ default_config = {
     "script_choices": [
                         "train_flux_lora_ui_kontext.py",
                         "train_flux_lora_ui_kontext_new1.py",
+                        "train_flux_lora_ui_kontext_timelog.py",
                         "train_flux_lora_ui_kontext_slider.py",
                         "train_flux_lora_ui_with_mask.py",
                         "train_flux_lora_ui.py",

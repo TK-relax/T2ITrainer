@@ -5,6 +5,7 @@ from datetime import datetime
 import copy
 import safetensors
 import argparse
+import time
 # import functools
 import gc
 # import logging
@@ -1258,8 +1259,14 @@ def main(args):
             vae, # 新增 VAE 模型作为参数
             fixed_prompt_embeds, # 新增固定的文本嵌入
             fixed_pooled_prompt_embeds, # 新增固定的池化嵌入
+            logger,
         ):
         
+            # ---- 初始化计时器 ----
+        overall_start_time = time.time()
+        last_step_time = overall_start_time
+        logger.info("⏱️  开始新一批次处理...")
+
         accelerator.unwrap_model(transformer).move_to_device_except_swap_blocks(accelerator.device)
         accelerator.unwrap_model(transformer).prepare_block_swap_before_forward()
         flush()
@@ -1280,7 +1287,12 @@ def main(args):
         indices = (u * noise_scheduler_copy.config.num_train_timesteps).long()
         timesteps = noise_scheduler_copy.timesteps[indices].to(device=accelerator.device)
 
-      # =========================================================================
+        current_time = time.time()
+        logger.info(f"    ✅ [1/5] 数据准备与时间步采样完成, 耗时: {current_time - last_step_time:.4f} 秒")
+        last_step_time = current_time
+
+        
+        # =========================================================================
         # =================== 精确复现源代码的VAE编码和处理逻辑 ===================
         # =========================================================================
         
@@ -1296,6 +1308,11 @@ def main(args):
         hq_latents = (hq_latents_batch - vae_config_shift_factor) * vae_config_scaling_factor
         lq_latents = (lq_latents_batch - vae_config_shift_factor) * vae_config_scaling_factor
         
+        current_time = time.time()
+        logger.info(f"    ✅ [2/5] VAE 编码完成, 耗时: {current_time - last_step_time:.4f} 秒")
+        last_step_time = current_time
+
+
         # 4. 准备latents列表以匹配原始逻辑
         noised_latent_list = [hq_latents]
         target_list = [hq_latents]
@@ -1383,6 +1400,10 @@ def main(args):
 
         text_ids = torch.zeros(prompt_embeds.shape[1], 3).to(device=accelerator.device, dtype=weight_dtype)
         
+        current_time = time.time()
+        logger.info(f"    ✅ [3/5] 图像加噪与 Latent 打包完成, 耗时: {current_time - last_step_time:.4f} 秒")
+        last_step_time = current_time
+
         # 6. 前向传播和损失计算 (与原始逻辑几乎完全相同)
         with accelerator.autocast():
             model_pred = transformer(
@@ -1396,6 +1417,11 @@ def main(args):
                 return_dict=False
             )[0]
         
+
+        current_time = time.time()
+        logger.info(f"    ✅ [4/5] Transformer 前向传播完成, 耗时: {current_time - last_step_time:.4f} 秒  <-- (核心计算步骤)")
+        last_step_time = current_time
+
         model_pred = model_pred[:, : packed_noisy_latents.size(1)]
         
         vae_scale_factor = 2 ** (len(vae.config.block_out_channels) - 1)
@@ -1424,6 +1450,13 @@ def main(args):
         
         total_loss = loss
         
+        current_time = time.time()
+        logger.info(f"    ✅ [5/5] 损失计算完成, 耗时: {current_time - last_step_time:.4f} 秒")
+    
+        # ---- 结束计时 ----
+        logger.info(f"🎉 批次处理完毕, 总耗时: {current_time - overall_start_time:.4f} 秒")
+
+
         return total_loss
     # =========================================================================
     # =========================================================================
@@ -1442,6 +1475,7 @@ def main(args):
                     vae,
                     fixed_prompt_embeds,
                     fixed_pooled_prompt_embeds,
+                    logger=logger,
                 )
 
                 accelerator.backward(loss)
