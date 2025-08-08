@@ -38,7 +38,7 @@ paired_dataset:
       # 'use_dynamic_lq' 控制是否加载一个HQ对应的所有LQ图像。
       # true: 加载所有 xxx_yyy.ext 的LQ图像
       # false: 只加载 xxx_001.ext 的LQ图像
-      use_dynamic_lq: true
+      use_dynamic_lq: false
       
       # 'resolution' 参数会被自动从主脚本的args中获取，这里也可以硬编码
       # resolution: 1024 

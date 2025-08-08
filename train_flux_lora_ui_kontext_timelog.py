@@ -148,6 +148,30 @@ from diffusers.image_processor import VaeImageProcessor
 
 from utils.utils import find_index_from_right, ToTensorUniversal
 
+import traceback
+from email_notifier import send_email
+
+# =========================================================================
+# ========================= 邮件通知配置 ==========================
+# =========================================================================
+# --- 请在此处填写您的邮箱信息以启用邮件通知功能 ---
+# 注意：建议为此功能使用一个独立的邮箱账户。
+# 对于像163或QQ邮箱这样的服务，您必须生成一个“应用专用密码”或“授权码”，
+# 而不是使用您的常规登录密码。
+
+ENABLE_EMAIL_NOTIFICATION = True # 设置为 False 可禁用此功能
+
+MAIL_HOST = "smtp.163.com"                # 您的SMTP服务器地址，例如 "smtp.163.com"
+MAIL_USER = "a912206109@163.com"          # 您的发件人邮箱地址
+MAIL_PASS = "RNeTFnPTtiQSEGqS"            # 您的邮箱授权码（非常重要，不是登录密码！）
+SENDER = "a912206109@163.com"             # 发件人邮箱 (通常与 MAIL_USER 保持一致)
+RECEIVERS = ["1372707774@qq.com"]         # 收件人邮箱列表，可以是多个
+# =========================================================================
+# =========================================================================
+
+
+
+
 
 def load_text_encoders(class_one, class_two):
     text_encoder_one = class_one.from_pretrained(
@@ -1544,7 +1568,7 @@ def main(args):
                 if global_step >= max_train_steps:
                     break
                 
-                args.save_model_steps = 2000
+                args.save_model_steps = 20
                 # 按步数保存
                 if args.save_model_steps > 0 and global_step % args.save_model_steps == 0:
                     if accelerator.is_main_process:
@@ -1648,4 +1672,82 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args)
+    
+    training_successful = False
+    error_details = ""
+
+    try:
+        # 执行主训练函数
+        main(args)
+        # 如果代码能执行到这里，说明训练已成功完成
+        training_successful = True
+        print("✅ 训练任务已成功完成。")
+
+    except Exception as e:
+        # 如果在训练过程中发生任何异常，则捕获它
+        error_details = traceback.format_exc()
+        # 建议使用 logger 记录错误，以便在日志文件中查看
+        if 'logger' in locals():
+            logger.error("❌ 训练任务因异常而失败。")
+            logger.error(error_details)
+        else:
+            print("❌ 训练任务因异常而失败。")
+            print(error_details)
+    
+    finally:
+        # 无论 try 代码块是成功还是失败，finally 块中的代码总会被执行。
+        if ENABLE_EMAIL_NOTIFICATION:
+            print("\n--- 准备发送最终状态通知邮件 ---")
+            
+            # 根据训练结果定义邮件主题和内容
+            if training_successful:
+                subject = f"✅ 训练成功通知：任务 '{args.save_name}' 已完成"
+                content = f"""
+尊敬的用户：
+
+您好！
+
+您的训练任务已成功完成，具体配置如下：
+
+- 任务名称 (Save Name): {args.save_name}
+- 输出目录 (Output Directory): {args.output_dir}
+- 训练周期 (Total Epochs): {args.num_train_epochs}
+
+请及时检查训练结果。
+
+此邮件为系统自动发送，请勿回复。
+"""
+            else:
+                subject = f"❌ 训练失败警告：任务 '{args.save_name}' 发生错误"
+                content = f"""
+尊敬的用户：
+
+您好！
+
+您的训练任务在执行过程中不幸失败，具体配置如下：
+
+- 任务名称 (Save Name): {args.save_name}
+- 输出目录 (Output Directory): {args.output_dir}
+
+错误详情如下：
+
+--- 错误追踪信息 ---
+{error_details}
+--- 错误信息结束 ---
+
+请根据错误信息检查您的代码或配置。
+
+此邮件为系统自动发送，请勿回复。
+"""
+            # 调用您在 email_notifier.py 中定义的函数来发送邮件
+            send_email(
+                mail_host=MAIL_HOST,
+                mail_user=MAIL_USER,
+                mail_pass=MAIL_PASS,
+                sender=SENDER,
+                receivers=RECEIVERS,
+                subject=subject,
+                content=content
+            )
+        else:
+            print("\n邮件通知功能已禁用，跳过发送。")
