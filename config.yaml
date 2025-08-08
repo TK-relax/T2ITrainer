@@ -71,7 +71,7 @@ paired_dataset:
       # ==========================================================
       # 'validate_samples_per_source': 从每个 data_sources 条目中抽取多少个样本。
       # 例如，设置为 25，程序会尝试从每个 lq/hq 路径对中各自抽取25个样本。
-      validate_samples_per_source: 25
+      validate_samples_per_source: 20
       
       # 'validation_seed': 用于保证抽样可复现的随机种子。
       # 只要种子不变，每次运行程序抽到的样本就是完全相同的。
