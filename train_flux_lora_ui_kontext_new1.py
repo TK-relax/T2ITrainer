@@ -793,19 +793,7 @@ def main(args):
     )
     noise_scheduler_copy = copy.deepcopy(noise_scheduler)
 
-    # --- 加载 VAE (必须保留，因为现在需要在循环中编码图像) ---
-    vae_path = args.vae_path if args.vae_path else args.pretrained_model_name_or_path
-    vae_subfolder = "vae" if not args.vae_path else None
-    logger.info("加载 VAE...")
-    vae = AutoencoderKL.from_pretrained(
-        vae_path,
-        subfolder=vae_subfolder,
-    )
-    # 冻结VAE参数，因为它不参与训练
-    vae.requires_grad_(False)
-    # 将VAE移至GPU并设置为评估模式
-    vae.to(accelerator.device, dtype=torch.float32) # VAE通常在float32下表现更好
-    vae.eval()
+    
 
     # =========================================================================
     # ======================= 新：一次性计算文本嵌入 ==========================
@@ -844,6 +832,23 @@ def main(args):
     gc.collect()
     torch.cuda.empty_cache()
     logger.info("文本编码器已卸载。")
+
+
+    # --- 加载 VAE (必须保留，因为现在需要在循环中编码图像) ---
+    vae_path = args.vae_path if args.vae_path else args.pretrained_model_name_or_path
+    vae_subfolder = "vae" if not args.vae_path else None
+    logger.info("加载 VAE...")
+    vae = AutoencoderKL.from_pretrained(
+        vae_path,
+        subfolder=vae_subfolder,
+    )
+    # 冻结VAE参数，因为它不参与训练
+    vae.requires_grad_(False)
+    # 将VAE移至GPU并设置为评估模式
+    vae.to(accelerator.device, dtype=torch.float32) # VAE通常在float32下表现更好
+    vae.eval()
+
+
     # =========================================================================
     # =========================================================================
 

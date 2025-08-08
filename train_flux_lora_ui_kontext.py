@@ -387,12 +387,12 @@ def parse_args(input_args=None):
         default=1,
         help=("Save model when x epochs"),
     )
-    # parser.add_argument(
-    #     "--save_model_steps",
-    #     type=int,
-    #     default=-1,
-    #     help=("Save model when x steps"),
-    # )
+    parser.add_argument(
+        "--save_model_steps",
+        type=int,
+        default=-1,
+        help=("Save model when x steps"),
+    )
     parser.add_argument(
         "--skip_epoch",
         type=int,
@@ -696,11 +696,11 @@ def main(args):
     
     captions_selection = {
         "target": image_1,
-        "use_extra" : True,
-        "condition_extra": {
-            image_2: 0.5,
-            "dropout": 0.5,
-        },
+        # "use_extra" : True,
+        # "condition_extra": {
+        #     image_2: 0.5,
+        #     "dropout": 0.5,
+        # },
         "dropout": args.caption_dropout,
     }
     dataset_configs = {
@@ -1042,7 +1042,7 @@ def main(args):
                     text_encoder_one.to("cpu")
                     text_encoder_two.to("cpu")
                     # del vae, tokenizer_one, tokenizer_two, text_encoder_one, text_encoder_two, pipe_prior_redux
-                    # del vae, tokenizer_one, tokenizer_two, text_encoder_one, text_encoder_two
+                    del vae, tokenizer_one, tokenizer_two, text_encoder_one, text_encoder_two
                 
             datarows = metadata_datarows
             # Handle validation split
@@ -1363,7 +1363,7 @@ def main(args):
         512
     ]
     
-    
+
     print("  Num examples = ", len(train_dataset))
     print("  Num Epochs = ", args.num_train_epochs)
     print("  num_update_steps_per_epoch = ", num_update_steps_per_epoch)

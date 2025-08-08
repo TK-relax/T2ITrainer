@@ -45,6 +45,16 @@ from diffusers import (
     # FluxTransformer2DModel,
 )
 
+from transformers import (
+    CLIPTokenizer, 
+    PretrainedConfig, 
+    T5TokenizerFast, 
+    BitsAndBytesConfig, 
+    CLIPTextModel, 
+    T5EncoderModel  # <--- 确保这两个在这里
+)
+
+
 from flux.transformer_flux_masked import MaskedFluxTransformer2DModel
 from flux.flux_utils import compute_loss_weighting_for_sd3, compute_density_for_timestep_sampling
 from flux.pipeline_flux_kontext import FluxKontextPipeline
@@ -84,6 +94,7 @@ import json
 import yaml
 import importlib
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # 定义配置文件的路径
 # 该YAML文件专门用于配置数据集的加载路径
 CONFIG_YAML_PATH = "config.yaml"
@@ -808,22 +819,35 @@ def main(args):
     vae.to(accelerator.device, dtype=torch.float32) # VAE通常在float32下表现更好
     vae.eval()
 
-    # =========================================================================
-    # ======================= 新：一次性计算文本嵌入 ==========================
+# =========================================================================
+    # ======================= 新：一次性计算文本嵌入（修正版）================
     # =========================================================================
     logger.info("加载文本编码器以计算固定Prompt的嵌入...")
-    # 1. 加载 Tokenizer 和 Text Encoder
+    
+    # 1. 直接加载 Tokenizers
     tokenizer_one = CLIPTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
     tokenizer_two = T5TokenizerFast.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer_2")
-    text_encoder_cls_one = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path)
-    text_encoder_cls_two = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path, subfolder="text_encoder_2")
-    text_encoder_one, text_encoder_two = load_text_encoders(text_encoder_cls_one, text_encoder_cls_two)
+    
+    # 2. 直接、显式地加载 CLIP Text Encoder
+    logger.info("正在加载 CLIPTextModel...")
+    text_encoder_one = CLIPTextModel.from_pretrained(
+        args.pretrained_model_name_or_path, subfolder="text_encoder"
+    )
 
-    # 2. 移动到设备并设置数据类型
+    # 3. 直接、显式地加载 T5 Text Encoder
+    logger.info("正在加载 T5EncoderModel...")
+    text_encoder_two = T5EncoderModel.from_pretrained(
+        args.pretrained_model_name_or_path, subfolder="text_encoder_2"
+    )
+
+    # 4. 移动到设备并设置数据类型
     text_encoder_one.to(accelerator.device, dtype=weight_dtype)
     text_encoder_two.to(accelerator.device, dtype=weight_dtype)
     text_encoder_one.eval()
     text_encoder_two.eval()
+    
+    # 后续计算和卸载 embedding 的代码保持不变...
+    logger.info("所有文本编码器加载成功。")
 
     # 3. 计算固定Prompt的嵌入
     logger.info(f"正在为固定Prompt计算文本嵌入: '{FIXED_PROMPT}'")
@@ -1550,6 +1574,7 @@ def main(args):
                                 vae,
                                 fixed_prompt_embeds,
                                 fixed_pooled_prompt_embeds,
+                                logger=logger,
                             )
                             # 使用 accelerator.gather(...) 来同步所有分布式进程（GPU）上的损失值。
                             # 如果只有一个GPU，它会直接返回张量。
@@ -1592,6 +1617,7 @@ def main(args):
                         vae,
                         fixed_prompt_embeds,
                         fixed_pooled_prompt_embeds,
+                        logger=logger,
                     )
                     # 收集所有GPU上的损失
                     gathered_loss = accelerator.gather(val_loss.repeat(args.train_batch_size))
